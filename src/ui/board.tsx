@@ -7,16 +7,36 @@ import { scope } from "../lib/utils";
 import { WindowsWindow, WindowsBox, WindowsWindowHeader } from "./windows-ui";
 import { CountDisplay } from "./count-display";
 
-const initialContext = {
+const initialContext: BoardContext = {
 	gameState: "idle",
 	cells: [],
 	mines: [],
 	initialized: false,
 };
 
-// type GameState = "idle" | "active" | "won" | "lost";
+type GameState = "idle" | "active" | "won" | "lost";
 
-function reducer(context, event) {
+interface BoardConfig {
+	rows: number;
+	columns: number;
+	mines: number;
+}
+
+interface BoardContext {
+	gameState: GameState;
+	cells: Cell[];
+	mines: number[];
+	initialized: boolean;
+}
+
+type BoardEvent =
+	| { type: "RESET"; board: BoardConfig }
+	| { type: "REVEAL_CELL"; board: BoardConfig; index: number }
+	| { type: "REVEAL_ADJACENT_CELLS"; board: BoardConfig; index: number }
+	| { type: "MARK_CELL"; index: number }
+	| { type: "MARK_REMAINING_MINES"; board: BoardConfig };
+
+function reducer(context: BoardContext, event: BoardEvent): BoardContext {
 	if (event.type === "RESET") {
 		return {
 			...context,
@@ -204,12 +224,6 @@ function reducer(context, event) {
 	return context;
 }
 
-// interface BoardConfig {
-// 	rows: number;
-// 	columns: number;
-// 	mines: number;
-// }
-
 const Board = ({ board = presets.Beginner }) => {
 	let [{ gameState, cells, mines }, send] = React.useReducer(
 		reducer,
@@ -249,12 +263,12 @@ const Board = ({ board = presets.Beginner }) => {
 
 	let remainingMineCount = getRemainingMineCount(cells, board.mines);
 
-	let rowArray = React.useMemo(
+	let rowArray = React.useMemo<null[]>(
 		() => Array(board.rows).fill(null),
 		[board.rows]
 	);
 	let getColumnArray = React.useCallback(
-		(rowIndex) =>
+		(rowIndex: number): Cell[] =>
 			cells.slice(
 				board.columns * rowIndex,
 				board.columns * rowIndex + board.columns
@@ -363,7 +377,7 @@ const GridCell = ({
 }) => {
 	let gameIsOver = gameState === "won" || gameState === "lost";
 	let isRevealed = status === "exploded" || status === "revealed";
-	let ref = React.useRef(null);
+	let ref = React.useRef<HTMLButtonElement>(null);
 
 	return (
 		<div
@@ -506,7 +520,15 @@ const ResetButton = ({ handleReset, gameState }) => {
  * }} args
  * @returns {number[]}
  */
-function initMines({ totalMines, maxMines, initialCellIndex }) {
+function initMines({
+	totalMines,
+	maxMines,
+	initialCellIndex,
+}: {
+	totalMines: number;
+	maxMines: number;
+	initialCellIndex: number;
+}): number[] {
 	let mines = [];
 	let minesToAssign = Array(totalMines).fill(null);
 	let randomCellIndex;
@@ -528,7 +550,7 @@ function initMines({ totalMines, maxMines, initialCellIndex }) {
  * @param {number} totalMines
  * @returns {number}
  */
-function getRemainingMineCount(cells, totalMines) {
+function getRemainingMineCount(cells: Cell[], totalMines: number): number {
 	return (
 		totalMines -
 		cells.reduce((prev, cur) => {
@@ -545,7 +567,11 @@ function getRemainingMineCount(cells, totalMines) {
  * }} board
  * @returns {number}
  */
-function getCellCount(board) {
+function getCellCount(board: {
+	rows: number;
+	columns: number;
+	mines: number;
+}): number {
 	return board.columns * board.rows;
 }
 
@@ -558,7 +584,7 @@ function getCellCount(board) {
  * @param {number[]} [mines]
  * @returns {Cell[]}
  */
-function createCells(board, mines) {
+function createCells(board: BoardConfig, mines?: number[]): Cell[] {
 	return Array(getCellCount(board))
 		.fill(null)
 		.map((_, index) => {
@@ -579,7 +605,11 @@ function createCells(board, mines) {
  * }} board
  * @returns {Cell[]}
  */
-function resetCells(board) {
+function resetCells(board: {
+	rows: number;
+	columns: number;
+	mines: number;
+}): Cell[] {
 	return createCells(board);
 }
 
@@ -592,7 +622,14 @@ function resetCells(board) {
  * @param {number[]} mines
  * @returns {Cell[]}
  */
-function initCells(board, mines) {
+function initCells(
+	board: {
+		rows: number;
+		columns: number;
+		mines: number;
+	},
+	mines: number[]
+): Cell[] {
 	return createCells(board, mines);
 }
 
@@ -606,7 +643,11 @@ function initCells(board, mines) {
  * @param {number[]} mines
  * @returns {Cell[]}
  */
-function addMinesToCells(cells, board, mines) {
+function addMinesToCells(
+	cells: Cell[],
+	board: BoardConfig,
+	mines: number[]
+): Cell[] {
 	return Array(getCellCount(board))
 		.fill(null)
 		.map((_, index) => {
@@ -623,7 +664,7 @@ function addMinesToCells(cells, board, mines) {
  * @param {Cell} cell
  * @returns {Cell}
  */
-function flagCell(cell) {
+function flagCell(cell: Cell): Cell {
 	return new Cell(cell, {
 		status: "flagged",
 	});
@@ -633,7 +674,7 @@ function flagCell(cell) {
  * @param {Cell} cell
  * @returns {Cell}
  */
-function toggleCellFlags(cell) {
+function toggleCellFlags(cell: Cell): Cell {
 	return new Cell(cell, {
 		status:
 			cell.status === "flagged"
@@ -657,7 +698,13 @@ function toggleCellFlags(cell) {
  * @param {"idle" | "active" | "won" | "lost"} startingState
  * @returns {["idle" | "active" | "won" | "lost", Cell[]]}
  */
-function selectCell(cellIndex, cells, mines, board, startingState) {
+function selectCell(
+	cellIndex: number,
+	cells: Cell[],
+	mines: number[],
+	board: BoardConfig,
+	startingState: GameState
+): [GameState, Cell[]] {
 	let cellsCopy = [...cells];
 	let cell = cellsCopy[cellIndex];
 	if (!cell) {
@@ -715,7 +762,7 @@ function selectCell(cellIndex, cells, mines, board, startingState) {
  * @param {Cell[]} cells
  * @returns
  */
-function getMaxMines(cells) {
+function getMaxMines(cells: Cell[]) {
 	return cells.length - 1;
 }
 
@@ -723,7 +770,7 @@ function getMaxMines(cells) {
  * @param {Cell[]} cells
  * @returns {number}
  */
-function getTotalRevealedCells(cells) {
+function getTotalRevealedCells(cells: Cell[]): number {
 	return cells.reduce((count, cell) => {
 		if (cell.status === "revealed") {
 			return ++count;
@@ -736,8 +783,10 @@ function getTotalRevealedCells(cells) {
  * @param {"idle" | "active" | "won" | "lost"} gameState
  * @returns {[number, () => void]}
  */
-function useTimer(gameState) {
-	let [timeElapsed, setTimeElapsed] = React.useState(0);
+function useTimer(
+	gameState: "idle" | "active" | "won" | "lost"
+): [number, () => void] {
+	let [timeElapsed, setTimeElapsed] = React.useState<number>(0);
 	React.useEffect(() => {
 		if (gameState === "active") {
 			let id = window.setInterval(() => {
